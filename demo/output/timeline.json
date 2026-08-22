@@ -1,0 +1,138 @@
+{
+  "recorded_at": "2026-08-17T07:10:54",
+  "duration_seconds": 278.8,
+  "validator_configured": "anthropic",
+  "validator_used": "offline",
+  "narrated": true,
+  "defectdojo_url": "http://localhost:8083",
+  "scenes": [
+    {
+      "scene": "00_title",
+      "title": "Multi-Stage Agentic SAST Engine",
+      "requirement": "\u2014",
+      "start_seconds": 1.1,
+      "timestamp": "0:01",
+      "narration": "This is a multi-stage agentic static analysis engine. Prepare, Scan, Validate, Prove. It finds vulnerabilities in source code, and then it reasons about which of them are actually exploitable."
+    },
+    {
+      "scene": "01_problem",
+      "title": "The problem",
+      "requirement": "\u2014",
+      "start_seconds": 14.5,
+      "timestamp": "0:14",
+      "narration": "The problem with a normal scanner is not that it misses bugs. It is that it reports two hundred findings, most of them already defended. Developers stop reading at twenty, and the real bug at number forty ships to production. So we split the job in two: finding a suspicious path, and judging whether it is exploitable."
+    },
+    {
+      "scene": "02_scan",
+      "title": "Stages one and two",
+      "requirement": "REQ-1, 2, 11, 14",
+      "start_seconds": 33.3,
+      "timestamp": "0:33",
+      "narration": "Here is a real scan of a deliberately vulnerable Flask service. Stage one builds a Code Property Graph from the source. No build, no pip install, and the code being scanned is never executed. Stage two walks that graph tracing attacker input to dangerous calls, and reports seventeen suspicious paths."
+    },
+    {
+      "scene": "03_suppressed",
+      "title": "Stage three: the reasoning",
+      "requirement": "REQ-3, 12",
+      "start_seconds": 51.3,
+      "timestamp": "0:51",
+      "narration": "Now the part that matters. Of those seventeen, eleven are confirmed and six are suppressed, and every suppression carries a written reason. The value passes through shell quote, which is the correct defence. The call sits in a branch that can never execute. A regular expression cannot say that."
+    },
+    {
+      "scene": "04_joern",
+      "title": "Swap the whole front end",
+      "requirement": "REQ-10",
+      "start_seconds": 68.2,
+      "timestamp": "1:08",
+      "narration": "This same scan, run through Joern instead. Joern is a mature code property graph tool with its own inter-procedural data flow engine. Stages one and two are completely replaced, stages three and four are untouched, and the result is identical. That is the evidence the validation stage is the contribution, not the parser."
+    },
+    {
+      "scene": "05_comparison",
+      "title": "Against the baseline",
+      "requirement": "REQ-6, 15",
+      "start_seconds": 87.7,
+      "timestamp": "1:27",
+      "narration": "And here is the comparison against both baselines. Joern finds everything but reports five false positives. Semgrep is cleaner but misses four real bugs. After our validation stage: eleven true positives, zero false positives, nothing missed. Precision up thirty-one points on Joern, and recall did not move."
+    },
+    {
+      "scene": "06_dashboard_scans",
+      "title": "The dashboard",
+      "requirement": "REQ-1, 11",
+      "start_seconds": 108.3,
+      "timestamp": "1:48",
+      "narration": "The same engine drives a dashboard. Here is the scan history, and the Code Property Graph statistics for a run: the nodes, the edges, the functions and the HTTP routes it discovered."
+    },
+    {
+      "scene": "07_finding",
+      "title": "One finding, end to end",
+      "requirement": "REQ-2, 3, 5",
+      "start_seconds": 121.7,
+      "timestamp": "2:01",
+      "narration": "Opening a single finding shows the whole chain. The taint path, step by step, from the query string into the variable and on into the dangerous call. The verdict, with its reasoning. A proof of concept built from the real route and the real parameter. And a suggested fix that names the actual variable."
+    },
+    {
+      "scene": "08_comparison_tab",
+      "title": "Comparison, on screen",
+      "requirement": "REQ-6, 15",
+      "start_seconds": 141.5,
+      "timestamp": "2:21",
+      "narration": "The comparison is in the dashboard too. Joern, Semgrep, our pattern matching, and our output after validation. Look at the last column: recall never moves. Suppressing everything would give perfect precision and be completely useless, so that is the number we guard with a test."
+    },
+    {
+      "scene": "09_dedupe",
+      "title": "Cross-repo deduplication",
+      "requirement": "REQ-4, 7",
+      "start_seconds": 159.4,
+      "timestamp": "2:39",
+      "narration": "The same command injection exists in the Python service and in the Node service. We fingerprint on the vulnerability class, the input source and the shape of the code, never on file paths. So the Python and JavaScript copies of one bug collapse into a single cluster. One remediation ticket, not three."
+    },
+    {
+      "scene": "10_gate",
+      "title": "The human-approval gate",
+      "requirement": "REQ-8",
+      "start_seconds": 178.7,
+      "timestamp": "2:58",
+      "narration": "Every confirmed finding gets a suggested fix, and nothing applies it automatically. Watch: applying the fix before approval is refused outright. A human approves, and only then does the engine hand over a patch. It still does not edit your source. That gate is enforced in code, not in a process document."
+    },
+    {
+      "scene": "11_sla",
+      "title": "SLA and escalation",
+      "requirement": "REQ-9",
+      "start_seconds": 199.1,
+      "timestamp": "3:19",
+      "narration": "Each finding is also on a clock. Critical gets twenty-four hours, high gets seventy-two. A finding that outlives its budget breaches and escalates to a named owner. Applying a fix stops the clock."
+    },
+    {
+      "scene": "12_defectdojo",
+      "title": "Live DefectDojo",
+      "requirement": "REQ-13",
+      "start_seconds": 212.7,
+      "timestamp": "3:32",
+      "narration": "Confirmed findings are pushed into DefectDojo over its API, live, right now. The engine creates the product and the engagement, imports the findings, and then reads them back from the server to confirm what actually landed. Submitted and stored are counted separately, because DefectDojo can accept a finding and still merge it into an existing one."
+    },
+    {
+      "scene": "13_defectdojo_ui",
+      "title": "The tickets, in DefectDojo itself",
+      "requirement": "REQ-13",
+      "start_seconds": 235.1,
+      "timestamp": "3:55",
+      "narration": "And this is DefectDojo itself, not our copy of it. The findings are really there, with their severities, their CWE identifiers and the file and line they came from."
+    },
+    {
+      "scene": "14_tests",
+      "title": "Every requirement, tested",
+      "requirement": "REQ-16",
+      "start_seconds": 246.8,
+      "timestamp": "4:06",
+      "narration": "Finally, the evidence. Every box on the hackathon slide has a test that proves it, and the traceability matrix is generated from a real run rather than written by hand. Fourteen requirements fully met, two partial, none failing."
+    },
+    {
+      "scene": "15_close",
+      "title": "Summary",
+      "requirement": "\u2014",
+      "start_seconds": 261.1,
+      "timestamp": "4:21",
+      "narration": "Four stages. Two interchangeable analysis engines. A real baseline comparison, cross-repository deduplication, an enforced approval gate, an SLA clock, and live ticket import. One hundred percent of false positives removed, at zero cost to recall."
+    }
+  ]
+}

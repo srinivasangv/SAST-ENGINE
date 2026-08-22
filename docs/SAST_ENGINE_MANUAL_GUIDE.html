@@ -1,0 +1,337 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>SAST Engine — Complete Manual Operations Guide</title>
+<style>
+  @page {
+    size: A4;
+    margin: 18mm 16mm 18mm 16mm;
+  }
+  * {
+    box-sizing: border-box;
+  }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    color: #1e293b;
+    background-color: #ffffff;
+    line-height: 1.5;
+    font-size: 13px;
+    margin: 0;
+    padding: 0;
+  }
+  h1 {
+    color: #0f172a;
+    font-size: 22px;
+    margin-top: 0;
+    margin-bottom: 6px;
+    padding-bottom: 8px;
+    border-bottom: 2px solid #3b82f6;
+  }
+  h2 {
+    color: #1e3a8a;
+    font-size: 16px;
+    margin-top: 20px;
+    margin-bottom: 8px;
+    border-bottom: 1px solid #e2e8f0;
+    padding-bottom: 4px;
+    page-break-after: avoid;
+  }
+  h3 {
+    color: #334155;
+    font-size: 14px;
+    margin-top: 14px;
+    margin-bottom: 6px;
+    page-break-after: avoid;
+  }
+  p, ul, ol {
+    margin-top: 4px;
+    margin-bottom: 8px;
+  }
+  ul, ol {
+    padding-left: 20px;
+  }
+  li {
+    margin-bottom: 4px;
+  }
+  code {
+    font-family: "JetBrains Mono", Consolas, "Courier New", monospace;
+    background: #f1f5f9;
+    color: #0f172a;
+    padding: 2px 5px;
+    border-radius: 4px;
+    font-size: 12px;
+    border: 1px solid #e2e8f0;
+  }
+  pre {
+    background: #0f172a;
+    color: #f8fafc;
+    padding: 10px 14px;
+    border-radius: 6px;
+    font-family: "JetBrains Mono", Consolas, "Courier New", monospace;
+    font-size: 11.5px;
+    line-height: 1.45;
+    overflow-x: auto;
+    margin: 8px 0;
+    page-break-inside: avoid;
+  }
+  pre code {
+    background: transparent;
+    color: inherit;
+    padding: 0;
+    border: none;
+  }
+  .comment {
+    color: #94a3b8;
+  }
+  .highlight {
+    color: #38bdf8;
+  }
+  .success {
+    color: #4ade80;
+  }
+  .card {
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 6px;
+    padding: 10px 14px;
+    margin: 10px 0;
+    page-break-inside: avoid;
+  }
+  .tip {
+    border-left: 4px solid #3b82f6;
+    background: #eff6ff;
+  }
+  .warning {
+    border-left: 4px solid #f59e0b;
+    background: #fffbeb;
+  }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 10px 0;
+    font-size: 12px;
+    page-break-inside: avoid;
+  }
+  th, td {
+    border: 1px solid #cbd5e1;
+    padding: 6px 10px;
+    text-align: left;
+  }
+  th {
+    background: #f1f5f9;
+    color: #0f172a;
+    font-weight: 600;
+  }
+  .badge {
+    display: inline-block;
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-size: 11px;
+    font-weight: 600;
+  }
+  .badge-blue { background: #dbeafe; color: #1e40af; }
+  .badge-green { background: #dcfce7; color: #166534; }
+  .badge-yellow { background: #fef3c7; color: #92400e; }
+  .page-break {
+    page-break-before: always;
+  }
+  .header-meta {
+    display: flex;
+    justify-content: space-between;
+    font-size: 11px;
+    color: #64748b;
+    margin-bottom: 15px;
+  }
+</style>
+</head>
+<body>
+
+<div class="header-meta">
+  <span><strong>Multi-Stage Agentic SAST Engine</strong> — Operational Manual</span>
+  <span>Local Environment: Windows PowerShell</span>
+</div>
+
+<h1>Manual Operations & Runbook (No Agent Required)</h1>
+
+<p>This document provides complete, step-by-step instructions to manually start, configure, run, and troubleshoot all components of the <strong>Multi-Stage Agentic SAST Engine</strong> on your local machine.</p>
+
+<h2>1. Architecture & Port Reference</h2>
+<p>The SAST platform consists of three core services and scanning engines:</p>
+<table>
+  <thead>
+    <tr>
+      <th>Service</th>
+      <th>Port / URL</th>
+      <th>Technology</th>
+      <th>Role</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><strong>Backend API</strong></td>
+      <td><code>http://127.0.0.1:8000</code></td>
+      <td>Python <code>server.py</code></td>
+      <td>Core scanning engine, pipeline orchestrator, JSON API</td>
+    </tr>
+    <tr>
+      <td><strong>Frontend UI</strong></td>
+      <td><code>http://localhost:5173</code></td>
+      <td>React + Vite (<code>ui/</code>)</td>
+      <td>Interactive triaging dashboard, findings explorer</td>
+    </tr>
+    <tr>
+      <td><strong>DefectDojo</strong></td>
+      <td><code>http://localhost:8083</code></td>
+      <td>Docker Compose</td>
+      <td>Vulnerability management & findings import</td>
+    </tr>
+    <tr>
+      <td><strong>Joern CPG</strong></td>
+      <td>CLI / Local</td>
+      <td>Scala / CPG Engine</td>
+      <td>Baseline comparison & semantic code analysis</td>
+    </tr>
+  </tbody>
+</table>
+
+<div class="card tip">
+  <strong>Credential Note:</strong> All local environment settings, credentials, and API keys are stored in <code>.env.local</code> (which is gitignored).
+</div>
+
+<h2>2. Quick Start: One-Script Method (Recommended)</h2>
+<p>The repository includes a PowerShell automation script (<code>services.ps1</code>) that manages all services automatically.</p>
+
+<h3>A. Starting All Services</h3>
+<p>Open <strong>PowerShell</strong> in the root folder <code>c:\Users\sunil\Downloads\sast-engine\sast-engine</code> and execute:</p>
+<pre><code><span class="comment"># 1. Start backend, dashboard, and DefectDojo containers</span>
+.\services.ps1 start</code></pre>
+
+<h3>B. Checking System Health & Status</h3>
+<pre><code>.\services.ps1 status</code></pre>
+
+<h3>C. Stopping Services</h3>
+<pre><code>.\services.ps1 stop</code></pre>
+
+<h3>D. Restarting Services</h3>
+<pre><code>.\services.ps1 restart</code></pre>
+
+<div class="page-break"></div>
+
+<h2>3. Manual Terminal-by-Terminal Execution</h2>
+<p>If you prefer running and monitoring each service in its own dedicated terminal window:</p>
+
+<h3>Terminal 1: Python Backend API</h3>
+<pre><code><span class="comment"># Navigate to project directory</span>
+cd c:\Users\sunil\Downloads\sast-engine\sast-engine
+
+<span class="comment"># Activate Python virtual environment</span>
+.\.venv\Scripts\Activate.ps1
+
+<span class="comment"># Run the backend API server</span>
+python server.py</code></pre>
+<p><em>Output will indicate:</em> <code>SAST engine API on http://127.0.0.1:8000</code></p>
+
+<h3>Terminal 2: Frontend Vite Dashboard</h3>
+<pre><code><span class="comment"># Navigate to the ui directory</span>
+cd c:\Users\sunil\Downloads\sast-engine\sast-engine\ui
+
+<span class="comment"># Start Vite dev server</span>
+npm run dev</code></pre>
+<p><em>Open your browser at:</em> <a href="http://localhost:5173">http://localhost:5173</a></p>
+
+<h3>Terminal 3: DefectDojo Containers (Docker)</h3>
+<pre><code><span class="comment"># Make sure Docker Desktop is open and running</span>
+cd C:\Users\sunil\django-DefectDojo
+
+<span class="comment"># Launch containers in background</span>
+docker compose up -d</code></pre>
+<p><em>DefectDojo Web Portal:</em> <a href="http://localhost:8083">http://localhost:8083</a> (Login: <code>admin</code> / <code>SastEngine2026!</code>)</p>
+
+<h2>4. How to Run Scans Manually</h2>
+
+<h3>Method A: Through the Web Dashboard (UI)</h3>
+<ol>
+  <li>Open <a href="http://localhost:5173">http://localhost:5173</a> in Google Chrome or Microsoft Edge.</li>
+  <li>Under <strong>Run a scan</strong>:
+    <ul>
+      <li>Click one of the quick test targets (e.g., <code>testdata/vuln-flask</code>, <code>testdata/vuln-express</code>, or <code>testdata/safe-app</code>), <strong>or</strong> click <strong>Upload Project File / Zip</strong> to scan your own code.</li>
+      <li>Select the engine: <code>builtin (fast)</code> or <code>joern (code property graph)</code>.</li>
+      <li>Check <strong>compare against Joern baseline</strong> or <strong>push to DefectDojo</strong> if desired.</li>
+    </ul>
+  </li>
+  <li>Click the blue <strong>Scan</strong> button.</li>
+  <li>Inspect findings, taint trace graphs, PoC exploits, and automated remediation recommendations in real-time.</li>
+</ol>
+
+<h3>Method B: Through the CLI</h3>
+<p>In PowerShell with virtual environment activated:</p>
+<pre><code><span class="comment"># Standard scan on test data</span>
+python scan.py testdata/vuln-flask
+
+<span class="comment"># Scan with full Joern baseline comparison</span>
+python scan.py testdata/vuln-flask --engine joern
+
+<span class="comment"># Scan and push directly to DefectDojo</span>
+python scan.py testdata/vuln-flask --push
+
+<span class="comment"># Run without LLM network calls (forces rule-based validator)</span>
+python scan.py testdata/vuln-flask --no-llm
+
+<span class="comment"># View suppressed false positives and reasons</span>
+python scan.py testdata/vuln-flask --show-suppressed</code></pre>
+
+<div class="page-break"></div>
+
+<h2>5. Configuration File (.env.local) Reference</h2>
+<p>The file <code>.env.local</code> in the root directory controls all engine integration endpoints and keys:</p>
+<pre><code><span class="comment"># DefectDojo Settings</span>
+DEFECTDOJO_URL=http://localhost:8083
+DEFECTDOJO_TOKEN=16d7821e440e9434371b043a40dbaa7e2f96fa5f
+DEFECTDOJO_USER=admin
+DEFECTDOJO_PASSWORD=SastEngine2026!
+DEFECTDOJO_DIR=C:\Users\sunil\django-DefectDojo
+
+<span class="comment"># Joern CLI Home Directory</span>
+JOERN_HOME=C:\Users\sunil\joern-cli
+
+<span class="comment"># LLM Validator (OpenAI / Anthropic)</span>
+LLM_PROVIDER=openai
+OPENAI_MODEL=gpt-4o-mini</code></pre>
+
+<h2>6. Troubleshooting & Common Issues</h2>
+
+<h3>Issue 1: Browser shows "127.0.0.1 refused to connect"</h3>
+<ul>
+  <li><strong>Cause:</strong> The Python server or Vite dev server is not currently running.</li>
+  <li><strong>Solution:</strong> Run <code>.\services.ps1 restart</code> in PowerShell. Make sure to open the UI at <code>http://localhost:5173</code> (the web dashboard) rather than opening port 8000 directly.</li>
+</ul>
+
+<h3>Issue 2: DefectDojo status says "not connected / connection refused"</h3>
+<ul>
+  <li><strong>Cause:</strong> Docker Desktop was closed or containers are in an exited state.</li>
+  <li><strong>Solution:</strong> Launch Docker Desktop, then in PowerShell run:
+    <pre><code>cd C:\Users\sunil\django-DefectDojo
+docker compose up -d</code></pre>
+  </li>
+</ul>
+
+<h3>Issue 3: UI Header shows "validator: offline (openai did not answer)"</h3>
+<ul>
+  <li><strong>Cause:</strong> OpenAI API key hit a rate limit (HTTP 429) or has insufficient credit quota.</li>
+  <li><strong>Engine Behavior:</strong> The SAST engine automatically falls back to its deterministic rule engine to ensure scans never fail.</li>
+  <li><strong>Solution:</strong> Add credits to your OpenAI account or update <code>OPENAI_API_KEY</code> in <code>.env.local</code>, then run a fresh scan.</li>
+</ul>
+
+<h3>Issue 4: Port 8000 or 5173 already in use</h3>
+<pre><code><span class="comment"># Force stop any lingering processes on ports 8000 and 5173</span>
+.\services.ps1 stop
+.\services.ps1 start</code></pre>
+
+<hr style="border: 0; border-top: 1px solid #e2e8f0; margin-top: 25px;">
+<div style="text-align: center; color: #94a3b8; font-size: 11px;">
+  Multi-Stage Agentic SAST Engine • Manual Operations Runbook • Ready for Standalone Operation
+</div>
+
+</body>
+</html>

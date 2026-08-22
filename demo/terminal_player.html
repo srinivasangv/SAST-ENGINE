@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>SAST Engine — demo terminal</title>
+<style>
+  /* The look of a terminal, drawn in HTML, because Playwright can film a
+     browser but not a real terminal window. The TEXT inside is genuine
+     captured stdout from demo/capture.py -- only the typing is animated. */
+  :root {
+    --bg:        #0d1117;
+    --panel:     #161b22;
+    --border:    #30363d;
+    --text:      #c9d1d9;
+    --dim:       #8b949e;
+    --green:     #3fb950;
+    --blue:      #58a6ff;
+    --amber:     #d29922;
+    --red:       #f85149;
+    --purple:    #bc8cff;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body {
+    width: 100%; height: 100%;
+    background: var(--bg);
+    color: var(--text);
+    font-family: "DejaVu Sans Mono", "Liberation Mono", Menlo, monospace;
+    overflow: hidden;
+  }
+
+  /* ---------------------------------------------------------- title cards */
+  #title-card {
+    position: fixed; inset: 0;
+    display: none;
+    flex-direction: column;
+    align-items: center; justify-content: center;
+    text-align: center;
+    padding: 0 12%;
+    background:
+      radial-gradient(circle at 50% 35%, #16324a 0%, var(--bg) 62%);
+  }
+  #title-card.on { display: flex; }
+  #title-card .stages {
+    font-size: 15px; letter-spacing: 5px; text-transform: uppercase;
+    color: var(--blue); margin-bottom: 26px;
+  }
+  #title-card h1 {
+    font-size: 46px; font-weight: 700; line-height: 1.2;
+    color: #fff; letter-spacing: -0.5px;
+  }
+  #title-card p {
+    margin-top: 22px; font-size: 20px; line-height: 1.6;
+    color: var(--dim); max-width: 900px;
+  }
+  #title-card .rule {
+    width: 90px; height: 3px; background: var(--green);
+    margin: 28px 0 0; border-radius: 2px;
+  }
+
+  /* ------------------------------------------------------------- terminal */
+  #terminal-card { position: fixed; inset: 0; display: none; padding: 26px 34px; }
+  #terminal-card.on { display: block; }
+
+  .scene-head {
+    display: flex; align-items: center; gap: 14px; margin-bottom: 14px;
+  }
+  .scene-head h2 { font-size: 20px; color: #fff; font-weight: 600; }
+  .badge {
+    font-size: 12px; padding: 4px 10px; border-radius: 20px;
+    background: rgba(88,166,255,.14); color: var(--blue);
+    border: 1px solid rgba(88,166,255,.35); white-space: nowrap;
+  }
+  .badge.real {
+    background: rgba(63,185,80,.13); color: var(--green);
+    border-color: rgba(63,185,80,.35);
+  }
+
+  .window {
+    height: calc(100% - 48px);
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 9px;
+    display: flex; flex-direction: column;
+    overflow: hidden;
+    box-shadow: 0 12px 40px rgba(0,0,0,.45);
+  }
+  .titlebar {
+    display: flex; align-items: center; gap: 8px;
+    padding: 9px 14px;
+    background: #21262d; border-bottom: 1px solid var(--border);
+  }
+  .dot { width: 11px; height: 11px; border-radius: 50%; }
+  .dot.r { background: #ff5f57; } .dot.y { background: #febc2e; }
+  .dot.g { background: #28c840; }
+  .titlebar span {
+    margin-left: 10px; font-size: 12px; color: var(--dim);
+  }
+
+  #screen {
+    flex: 1; overflow: hidden;
+    padding: 14px 18px;
+    font-size: 13.5px; line-height: 1.52;
+    white-space: pre-wrap; word-break: break-word;
+  }
+  /* Long captures scroll upward instead of overflowing off the bottom. */
+  #screen-inner { transition: transform .35s linear; }
+
+  .prompt-line { color: var(--green); font-weight: 600; margin-bottom: 4px; }
+  .prompt-line .sym { color: var(--purple); }
+  .cursor {
+    display: inline-block; width: 8px; height: 15px;
+    background: var(--text); vertical-align: -2px;
+    animation: blink 1s steps(2, start) infinite;
+  }
+  @keyframes blink { to { visibility: hidden; } }
+
+  /* Colouring is applied to the REAL captured text by keyword, so the
+     terminal reads like a terminal without any of the text being altered. */
+  .c-crit  { color: var(--red);    font-weight: 700; }
+  .c-high  { color: #ff9d5c;       font-weight: 700; }
+  .c-med   { color: var(--amber);  font-weight: 600; }
+  .c-low   { color: var(--dim); }
+  .c-ok    { color: var(--green);  font-weight: 600; }
+  .c-head  { color: var(--blue);   font-weight: 700; }
+  .c-dim   { color: var(--dim); }
+  .c-key   { color: var(--purple); }
+</style>
+</head>
+<body>
+
+<div id="title-card">
+  <div class="stages" id="t-stages">Prepare · Scan · Validate · Prove</div>
+  <h1 id="t-title"></h1>
+  <div class="rule"></div>
+  <p id="t-sub"></p>
+</div>
+
+<div id="terminal-card">
+  <div class="scene-head">
+    <h2 id="s-title"></h2>
+    <div class="badge" id="s-req"></div>
+    <div class="badge real" id="s-real">real captured output</div>
+  </div>
+  <div class="window">
+    <div class="titlebar">
+      <div class="dot r"></div><div class="dot y"></div><div class="dot g"></div>
+      <span id="s-note"></span>
+    </div>
+    <div id="screen"><div id="screen-inner"></div></div>
+  </div>
+</div>
+
+<script>
+// ------------------------------------------------------------------ helpers
+
+const $ = (id) => document.getElementById(id);
+
+function escapeHtml(text) {
+  return text.replace(/[&<>]/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+}
+
+// Colour a line of REAL output by what it says. This only adds colour; it
+// never changes a character of the captured text.
+function colourise(line) {
+  const safe = escapeHtml(line);
+  if (/^\s*(STAGE|COMPARISON|CONFIRMED|SUPPRESSED)/.test(line))
+    return `<span class="c-head">${safe}</span>`;
+  if (/\bCRITICAL\b/.test(line))  return `<span class="c-crit">${safe}</span>`;
+  if (/\bHIGH\b/.test(line))      return `<span class="c-high">${safe}</span>`;
+  if (/\bMEDIUM\b/.test(line))    return `<span class="c-med">${safe}</span>`;
+  if (/\bLOW\b/.test(line))       return `<span class="c-low">${safe}</span>`;
+  if (/passed|100\.00%|✓|ok\b/.test(line)) return `<span class="c-ok">${safe}</span>`;
+  if (/^\s*(path|PoC|fix|dupe|why)\s/.test(line))
+    return `<span class="c-key">${safe}</span>`;
+  if (/^\s*[-=]{4,}/.test(line))  return `<span class="c-dim">${safe}</span>`;
+  return safe;
+}
+
+let timers = [];
+function clearTimers() { timers.forEach(clearTimeout); timers = []; }
+
+// ------------------------------------------------------------ title scenes
+
+window.showTitle = function (title, subtitle, stages) {
+  clearTimers();
+  $('terminal-card').classList.remove('on');
+  $('title-card').classList.add('on');
+  $('t-title').textContent = title;
+  $('t-sub').textContent = subtitle || '';
+  $('t-stages').textContent = stages || 'Prepare · Scan · Validate · Prove';
+  return true;
+};
+
+// --------------------------------------------------------- terminal scenes
+
+/**
+ * Replay one captured command.
+ *
+ * `durationMs` is the length of this scene's narration audio. The line rate
+ * is derived from it so the output finishes as the sentence finishes --
+ * a fixed typing speed would either race ahead of the voice on a short
+ * capture or still be scrolling after the voice has moved on.
+ */
+window.playCapture = function (scene, durationMs) {
+  clearTimers();
+  $('title-card').classList.remove('on');
+  $('terminal-card').classList.add('on');
+  $('s-title').textContent = scene.title;
+  $('s-req').textContent = scene.requirement;
+  $('s-note').textContent = scene.note || scene.command;
+
+  const inner = $('screen-inner');
+  inner.innerHTML = '';
+  inner.style.transform = 'translateY(0)';
+
+  const promptEl = document.createElement('div');
+  promptEl.className = 'prompt-line';
+  promptEl.innerHTML = '<span class="sym">sast-engine $</span> ' +
+                       escapeHtml(scene.command) + '<span class="cursor"></span>';
+  inner.appendChild(promptEl);
+
+  const lines = (scene.output || '').split('\n');
+
+  // Reserve the first 12% of the scene for "typing" the command itself, and
+  // the last 8% as a pause on the finished output.
+  const typeMs   = durationMs * 0.12;
+  const scrollMs = durationMs * 0.80;
+  const perLine  = Math.max(12, scrollMs / Math.max(lines.length, 1));
+
+  // How many lines fit on screen before we have to scroll.
+  const screenH  = $('screen').clientHeight - 30;
+  const lineH    = 13.5 * 1.52;
+  const visible  = Math.floor(screenH / lineH) - 1;
+
+  timers.push(setTimeout(() => {
+    promptEl.querySelector('.cursor')?.remove();
+    lines.forEach((line, index) => {
+      timers.push(setTimeout(() => {
+        const el = document.createElement('div');
+        el.innerHTML = colourise(line) || '&nbsp;';
+        inner.appendChild(el);
+        const over = (index + 2) - visible;
+        if (over > 0) inner.style.transform = `translateY(${-over * lineH}px)`;
+      }, index * perLine));
+    });
+  }, typeMs));
+
+  return lines.length;
+};
+
+// Ready flag the recorder waits on, so it never drives a half-loaded page.
+window.PLAYER_READY = true;
+</script>
+</body>
+</html>

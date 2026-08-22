@@ -1,0 +1,26 @@
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+data/scans/*.json
+data/scans/archive/
+.run/
+data/exports/*.json
+ui/node_modules/
+ui/dist/
+.DS_Store
+
+# local credentials -- never commit
+.env.local
+
+# Demo artefacts. The finished MP4 and the per-scene stills ARE the
+# deliverable and are tracked; everything else here is an intermediate that
+# demo/run_demo.sh regenerates.
+demo/captures/
+demo/narration/
+demo/output/raw/
+demo/output/*.webm
+demo/output/narration.wav
+.env
+.venv/
+__pycache__/

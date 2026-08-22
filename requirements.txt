@@ -1,0 +1,19 @@
+# The engine itself needs almost nothing: Python's standard library does the
+# scanning, the storage and the web server. These are for the parts that talk
+# to the outside world, and for the tests and the demo recording.
+
+# --- engine -----------------------------------------------------------------
+anthropic>=0.40.0     # Stage 3 - Claude validation (optional; OpenAI goes over
+                      #           plain urllib, and offline needs nothing)
+semgrep>=1.100.0      # Secondary baseline we compare ourselves against
+
+# --- tests ------------------------------------------------------------------
+pytest>=8.0.0         # Test suite, including one test per slide requirement
+
+# --- demo video (only needed to RE-RECORD it; not needed to run the engine) --
+playwright>=1.49.0    # Drives the browser and records it
+                      #   after installing: python -m playwright install chromium
+piper-tts>=1.2.0      # Offline neural narration - no API key, no network
+                      #   voice model: ~/.local/share/piper-voices/en-us-lessac-medium.onnx
+imageio-ffmpeg>=0.5.0 # A full static ffmpeg (H.264 + AAC). Playwright ships one
+                      #   too, but it is VP8/WebM only and has no audio encoders.

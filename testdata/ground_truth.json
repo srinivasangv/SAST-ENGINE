@@ -1,0 +1,55 @@
+{
+  "description": "The QA oracle. Every entry is a finding Stage 2 is expected to raise, hand-labelled with whether it is genuinely exploitable. tests/test_accuracy.py grades the engine against this file, and engine/baseline.py uses it to compute precision, recall and the false-positive suppression rate. Entries with exploitable=false are the decoys: a pattern-matching scanner reports them, and Stage 3 has to reason its way to suppressing them.",
+  "labelled_by": "Member 7 (QA) with Member 2 (rules) reviewing",
+  "repos": {
+    "vuln-flask": {
+      "path": "testdata/vuln-flask",
+      "language": "python",
+      "expected": [
+        {"marker": "VULN-1",  "file": "app.py", "line": 39,  "category": "command_injection", "exploitable": true,  "note": "?host=x;id is concatenated straight into os.system"},
+        {"marker": "VULN-2",  "file": "app.py", "line": 47,  "category": "command_injection", "exploitable": true,  "note": "subprocess.run with shell=True and a concatenated form field"},
+        {"marker": "VULN-3",  "file": "app.py", "line": 55,  "category": "code_injection",    "exploitable": true,  "note": "eval() over the raw query string"},
+        {"marker": "VULN-4",  "file": "app.py", "line": 64,  "category": "sql_injection",     "exploitable": true,  "note": "f-string builds the WHERE clause"},
+        {"marker": "VULN-5",  "file": "app.py", "line": 73,  "category": "ssti",              "exploitable": true,  "note": "user value concatenated into a rendered template string"},
+        {"marker": "VULN-6",  "file": "app.py", "line": 80,  "category": "deserialization",   "exploitable": true,  "note": "pickle.loads over the raw request body"},
+        {"marker": "VULN-7",  "file": "app.py", "line": 88,  "category": "ssrf",              "exploitable": true,  "note": "requests.get to a caller-supplied URL, no allowlist"},
+        {"marker": "VULN-8",  "file": "app.py", "line": 96,  "category": "path_traversal",    "exploitable": true,  "note": "../ in ?file escapes /srv/files"},
+        {"marker": "VULN-9",  "file": "app.py", "line": 104, "category": "deserialization",   "exploitable": true,  "note": "yaml.load without SafeLoader"},
+        {"marker": "VULN-10", "file": "app.py", "line": 112, "category": "open_redirect",     "exploitable": true,  "note": "redirect() to an unvalidated destination"},
+        {"marker": "VULN-11", "file": "app.py", "line": 128, "category": "command_injection", "exploitable": true,  "note": "reached through build_report(); requires inter-procedural taint"},
+
+        {"marker": "DECOY-1", "file": "app.py", "line": 141, "category": "command_injection", "exploitable": false, "reason": "shlex.quote() is the correct sanitizer for a shell argument"},
+        {"marker": "DECOY-2", "file": "app.py", "line": 150, "category": "sql_injection",     "exploitable": false, "reason": "int() cast: an integer cannot carry SQL syntax"},
+        {"marker": "DECOY-3", "file": "app.py", "line": 160, "category": "command_injection", "exploitable": false, "reason": "value is checked against an allowlist and the request is rejected otherwise"},
+        {"marker": "DECOY-4", "file": "app.py", "line": 169, "category": "command_injection", "exploitable": false, "reason": "the branch is `if False:` and can never execute"},
+        {"marker": "DECOY-5", "file": "app.py", "line": 179, "category": "command_injection", "exploitable": false, "reason": "helper has no caller; no HTTP route reaches this sink"},
+        {"marker": "DECOY-6", "file": "app.py", "line": 194, "category": "xss",               "exploitable": false, "reason": "html.escape() runs before Markup(), which is exactly what stops XSS"}
+      ]
+    },
+    "vuln-express": {
+      "path": "testdata/vuln-express",
+      "language": "javascript",
+      "expected": [
+        {"marker": "VULN-12", "file": "server.js", "line": 32,  "category": "command_injection", "exploitable": true, "duplicate_of": "VULN-1", "note": "same shell-concatenation pattern as the Flask service"},
+        {"marker": "VULN-13", "file": "server.js", "line": 39,  "category": "sql_injection",     "exploitable": true,  "note": "template literal interpolates the query parameter"},
+        {"marker": "VULN-14", "file": "server.js", "line": 46,  "category": "ssrf",              "exploitable": true,  "note": "axios.get to a caller-supplied URL"},
+        {"marker": "VULN-15", "file": "server.js", "line": 53,  "category": "path_traversal",    "exploitable": true,  "note": "readFileSync on a concatenated path"},
+        {"marker": "VULN-16", "file": "server.js", "line": 60,  "category": "open_redirect",     "exploitable": true,  "note": "res.redirect to an unvalidated destination"},
+        {"marker": "VULN-17", "file": "server.js", "line": 66,  "category": "xss",               "exploitable": true,  "note": "query parameter written into the HTML response"},
+
+        {"marker": "DECOY-7",  "file": "server.js", "line": 76,  "category": "sql_injection",     "exploitable": false, "reason": "parseInt() makes the value a number before it reaches the query"},
+        {"marker": "DECOY-8",  "file": "server.js", "line": 83,  "category": "open_redirect",     "exploitable": false, "reason": "encodeURIComponent() plus a fixed local path prefix"},
+        {"marker": "DECOY-9",  "file": "server.js", "line": 90,  "category": "path_traversal",    "exploitable": false, "reason": "path.basename() strips any directory traversal"},
+        {"marker": "DECOY-10", "file": "server.js", "line": 101, "category": "command_injection", "exploitable": false, "reason": "region is checked against an allowlist before use"}
+      ]
+    },
+    "safe-app": {
+      "path": "testdata/safe-app",
+      "language": "python",
+      "expected": [
+        {"marker": "SAFE-1", "file": "app.py", "line": 68, "category": "ssrf", "exploitable": false, "reason": "the host is checked against ALLOWED_HOSTS and the request is rejected otherwise"}
+      ],
+      "note": "This repository contains no vulnerabilities. Any confirmed finding here is a false positive."
+    }
+  }
+}

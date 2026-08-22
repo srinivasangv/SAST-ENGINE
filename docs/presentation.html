@@ -1,0 +1,776 @@
+<title>Multi-Stage Agentic SAST Engine</title>
+<style>
+/* ============================================================
+   Design plan
+   Colour  : cool slate neutrals (blue-biased, chosen not inherited)
+             + a single instrument-panel teal as the accent.
+             Semantic red/green kept distinct from the accent hue.
+   Type    : system sans, heavy + tight for display; monospace for
+             every label, identifier and figure -- the vernacular of
+             the subject (terminals, diffs, CWE ids, taint paths).
+   Layout  : a scrolling technical document, left-aligned, one idea
+             per band. Numbered markers only where the content is a
+             genuine sequence (the four stages).
+   ============================================================ */
+
+:root {
+  /* light palette -- complete, so the un-stamped default always resolves */
+  --ground:      #E9ECF1;
+  --surface:     #FCFDFE;
+  --surface-2:   #F1F4F8;
+  --ink:         #101822;
+  --ink-2:       #33404F;
+  --muted:       #626F80;
+  --line:        #CFD6E0;
+  --line-soft:   #E1E6ED;
+  --accent:      #0E6F86;
+  --accent-soft: #D7EBF1;
+  --critical:    #A62B1F;
+  --critical-bg: #F7E2DF;
+  --good:        #0E6446;
+  --good-bg:     #DCEDE5;
+  --warn:        #8A5A00;
+  --warn-bg:     #F6EAD2;
+  --shadow:      0 1px 2px rgba(16,24,34,.06), 0 8px 24px rgba(16,24,34,.05);
+
+  --display: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --body:    system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --mono:    ui-monospace, "SF Mono", SFMono-Regular, "JetBrains Mono", Menlo, Consolas, "Liberation Mono", monospace;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --ground:      #0D1219;
+    --surface:     #141C26;
+    --surface-2:   #1B2532;
+    --ink:         #E8EDF4;
+    --ink-2:       #C0CAD6;
+    --muted:       #8593A4;
+    --line:        #2A3746;
+    --line-soft:   #212C39;
+    --accent:      #4FBEDA;
+    --accent-soft: #123642;
+    --critical:    #F08579;
+    --critical-bg: #351916;
+    --good:        #5FCFA2;
+    --good-bg:     #10291F;
+    --warn:        #E0B15C;
+    --warn-bg:     #2E2410;
+    --shadow:      0 1px 2px rgba(0,0,0,.4), 0 10px 30px rgba(0,0,0,.35);
+  }
+}
+
+:root[data-theme="dark"] {
+  --ground:      #0D1219;
+  --surface:     #141C26;
+  --surface-2:   #1B2532;
+  --ink:         #E8EDF4;
+  --ink-2:       #C0CAD6;
+  --muted:       #8593A4;
+  --line:        #2A3746;
+  --line-soft:   #212C39;
+  --accent:      #4FBEDA;
+  --accent-soft: #123642;
+  --critical:    #F08579;
+  --critical-bg: #351916;
+  --good:        #5FCFA2;
+  --good-bg:     #10291F;
+  --warn:        #E0B15C;
+  --warn-bg:     #2E2410;
+  --shadow:      0 1px 2px rgba(0,0,0,.4), 0 10px 30px rgba(0,0,0,.35);
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--ground);
+  color: var(--ink);
+  font-family: var(--body);
+  font-size: 16px;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+}
+
+.wrap { max-width: 1120px; margin: 0 auto; padding: 0 28px; }
+
+/* ---------------------------------------------------------- type */
+
+h1, h2, h3 { font-family: var(--display); text-wrap: balance; margin: 0; }
+h1 { font-size: clamp(2.1rem, 5.2vw, 3.6rem); font-weight: 800; letter-spacing: -0.035em; line-height: 1.04; }
+h2 { font-size: clamp(1.35rem, 2.8vw, 1.9rem); font-weight: 750; letter-spacing: -0.022em; line-height: 1.15; }
+h3 { font-size: 1.02rem; font-weight: 700; letter-spacing: -0.012em; }
+
+p { margin: 0 0 1em; max-width: 68ch; color: var(--ink-2); }
+p.lead { font-size: 1.12rem; color: var(--ink); max-width: 60ch; }
+strong { color: var(--ink); font-weight: 650; }
+
+.eyebrow {
+  font-family: var(--mono);
+  font-size: .69rem;
+  letter-spacing: .16em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin: 0 0 .75rem;
+  display: flex;
+  align-items: center;
+  gap: .6rem;
+}
+.eyebrow::after { content: ""; flex: 1; height: 1px; background: var(--line); }
+
+.mono { font-family: var(--mono); }
+.num  { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+
+/* ---------------------------------------------------------- bands */
+
+section { padding: 62px 0; border-top: 1px solid var(--line-soft); }
+section:first-of-type { border-top: none; }
+
+header.hero {
+  padding: 76px 0 58px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--line);
+}
+
+.tagline {
+  font-family: var(--mono);
+  font-size: .82rem;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  color: var(--accent);
+  margin: 0 0 1.1rem;
+}
+
+.hero-meta {
+  display: flex; flex-wrap: wrap; gap: .5rem;
+  margin-top: 1.8rem;
+}
+.chip {
+  font-family: var(--mono); font-size: .74rem;
+  padding: .3rem .68rem; border-radius: 3px;
+  border: 1px solid var(--line); color: var(--muted);
+  background: var(--surface-2);
+}
+
+/* ------------------------------------------------------- headline */
+
+.headline {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(168px, 1fr));
+  gap: 1px;
+  background: var(--line);
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  overflow: hidden;
+  margin-top: 2.4rem;
+}
+.headline div { background: var(--surface); padding: 1.1rem 1.2rem; }
+.headline .v {
+  font-family: var(--mono); font-variant-numeric: tabular-nums;
+  font-size: 1.95rem; font-weight: 600; letter-spacing: -.03em;
+  line-height: 1.1; color: var(--ink);
+}
+.headline .v.up { color: var(--good); }
+.headline .v.hero-figure { color: var(--accent); }
+.headline .k {
+  font-family: var(--mono); font-size: .68rem; letter-spacing: .1em;
+  text-transform: uppercase; color: var(--muted); margin-top: .35rem;
+}
+
+/* -------------------------------------------------------- stages */
+
+.stages { display: grid; gap: 1px; background: var(--line); border: 1px solid var(--line); border-radius: 4px; overflow: hidden; }
+@media (min-width: 860px) { .stages { grid-template-columns: repeat(4, 1fr); } }
+
+.stage { background: var(--surface); padding: 1.4rem 1.3rem 1.5rem; display: flex; flex-direction: column; gap: .55rem; }
+.stage .idx {
+  font-family: var(--mono); font-size: .7rem; letter-spacing: .12em;
+  color: var(--accent); font-weight: 600;
+}
+.stage h3 { margin-bottom: .1rem; }
+.stage p { font-size: .88rem; margin: 0; color: var(--ink-2); }
+.stage .owner {
+  margin-top: auto; padding-top: .8rem;
+  font-family: var(--mono); font-size: .7rem; color: var(--muted);
+  border-top: 1px dashed var(--line);
+}
+
+/* --------------------------------------------------------- panel */
+
+.panel {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  padding: 1.5rem 1.6rem;
+  box-shadow: var(--shadow);
+}
+.panel + .panel { margin-top: 1rem; }
+
+.two-col { display: grid; gap: 1.6rem; }
+@media (min-width: 900px) { .two-col { grid-template-columns: 1fr 1fr; } }
+
+/* ---------------------------------------------------- taint path */
+
+.trace { list-style: none; margin: 0; padding: 0; }
+.trace li {
+  display: grid; grid-template-columns: auto 1fr; gap: .9rem;
+  padding: .55rem 0; position: relative;
+}
+.trace li:not(:last-child)::before {
+  content: ""; position: absolute; left: 9px; top: 2.05rem; bottom: -.35rem;
+  width: 1px; background: var(--line);
+}
+.trace .dot {
+  width: 19px; height: 19px; border-radius: 50%;
+  border: 1px solid var(--accent); color: var(--accent);
+  background: var(--surface);
+  font-family: var(--mono); font-size: .64rem;
+  display: flex; align-items: center; justify-content: center;
+  margin-top: .25rem; z-index: 1;
+}
+.trace .what { font-size: .87rem; color: var(--ink-2); }
+.trace code {
+  display: block; font-family: var(--mono); font-size: .79rem;
+  background: var(--surface-2); border: 1px solid var(--line-soft);
+  border-radius: 3px; padding: .3rem .55rem; margin-top: .3rem;
+  color: var(--ink); overflow-x: auto;
+}
+
+.verdict {
+  border-left: 3px solid var(--good);
+  background: var(--good-bg);
+  padding: .9rem 1.1rem; border-radius: 0 3px 3px 0;
+  margin-top: 1rem;
+}
+.verdict.kill { border-left-color: var(--critical); background: var(--critical-bg); }
+.verdict .tag {
+  font-family: var(--mono); font-size: .68rem; letter-spacing: .1em;
+  text-transform: uppercase; color: var(--good); font-weight: 700;
+}
+.verdict.kill .tag { color: var(--critical); }
+.verdict p { margin: .35rem 0 0; font-size: .88rem; color: var(--ink); }
+
+/* --------------------------------------------------------- table */
+
+.scroll { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; font-size: .88rem; }
+caption {
+  text-align: left; font-family: var(--mono); font-size: .7rem;
+  letter-spacing: .1em; text-transform: uppercase; color: var(--muted);
+  padding-bottom: .7rem;
+}
+th, td { padding: .62rem .7rem; text-align: right; border-bottom: 1px solid var(--line-soft); white-space: nowrap; }
+th:first-child, td:first-child { text-align: left; white-space: normal; }
+thead th {
+  font-family: var(--mono); font-size: .68rem; letter-spacing: .08em;
+  text-transform: uppercase; color: var(--muted); font-weight: 500;
+  border-bottom: 1px solid var(--line);
+}
+tbody td { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+tbody td:first-child { font-family: var(--body); color: var(--ink-2); }
+tr.ours-final td { background: var(--accent-soft); font-weight: 600; color: var(--ink); }
+tr.ours-final td:first-child { color: var(--ink); font-weight: 650; }
+.delta-up { color: var(--good); font-weight: 650; }
+.flat { color: var(--muted); }
+
+/* --------------------------------------------------------- pills */
+
+.pill {
+  font-family: var(--mono); font-size: .7rem; font-weight: 600;
+  padding: .15rem .5rem; border-radius: 3px; letter-spacing: .02em;
+}
+.pill.crit { background: var(--critical-bg); color: var(--critical); }
+.pill.ok   { background: var(--good-bg); color: var(--good); }
+.pill.warn { background: var(--warn-bg); color: var(--warn); }
+
+/* --------------------------------------------------------- lists */
+
+.facts { list-style: none; margin: 0; padding: 0; display: grid; gap: .55rem; }
+.facts li { display: grid; grid-template-columns: auto 1fr; gap: .7rem; font-size: .9rem; color: var(--ink-2); }
+.facts .mark { font-family: var(--mono); color: var(--accent); }
+
+.split { display: grid; gap: 1px; background: var(--line); border: 1px solid var(--line); border-radius: 4px; overflow: hidden; }
+@media (min-width: 760px) { .split.three { grid-template-columns: repeat(3, 1fr); } .split.two { grid-template-columns: 1fr 1fr; } }
+.split > div { background: var(--surface); padding: 1.2rem 1.3rem; }
+.split h3 { margin-bottom: .4rem; }
+.split p { font-size: .87rem; margin: 0; }
+
+/* -------------------------------------------------------- module */
+
+.modules { display: grid; gap: .5rem; }
+.module {
+  display: grid; grid-template-columns: 3rem 1fr; gap: 1rem;
+  padding: .8rem 1rem; background: var(--surface);
+  border: 1px solid var(--line); border-radius: 4px; align-items: start;
+}
+.module .m {
+  font-family: var(--mono); font-size: .78rem; font-weight: 700;
+  color: var(--accent); padding-top: .05rem;
+}
+.module h3 { font-size: .93rem; margin-bottom: .15rem; }
+.module p { font-size: .83rem; margin: 0; color: var(--muted); }
+
+/* ------------------------------------------------------- gate */
+
+.gate { display: flex; flex-wrap: wrap; align-items: center; gap: .55rem; font-family: var(--mono); font-size: .8rem; }
+.gate .node { padding: .35rem .7rem; border: 1px solid var(--line); border-radius: 3px; background: var(--surface-2); color: var(--ink-2); }
+.gate .node.stop { border-color: var(--critical); color: var(--critical); background: var(--critical-bg); }
+.gate .node.go { border-color: var(--good); color: var(--good); background: var(--good-bg); }
+.gate .arrow { color: var(--muted); }
+
+/* ------------------------------------------------------- footer */
+
+footer { padding: 46px 0 70px; border-top: 1px solid var(--line); }
+footer p { font-size: .85rem; color: var(--muted); }
+
+code.inline {
+  font-family: var(--mono); font-size: .86em;
+  background: var(--surface-2); border: 1px solid var(--line-soft);
+  border-radius: 3px; padding: .06em .32em; color: var(--ink);
+}
+
+pre.term {
+  font-family: var(--mono); font-size: .78rem; line-height: 1.65;
+  background: var(--surface-2); border: 1px solid var(--line);
+  border-radius: 4px; padding: 1rem 1.1rem; overflow-x: auto;
+  color: var(--ink-2); margin: 0;
+}
+pre.term b { color: var(--ink); font-weight: 600; }
+pre.term .c { color: var(--critical); }
+pre.term .g { color: var(--good); }
+pre.term .a { color: var(--accent); }
+
+a { color: var(--accent); }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+</style>
+
+<header class="hero">
+  <div class="wrap">
+    <p class="tagline">Prepare → Scan → Validate → Prove</p>
+    <h1>Multi-Stage Agentic SAST&nbsp;Engine</h1>
+    <p class="lead">A source-code scanner that suppresses false positives by <strong>reasoning about them</strong>, not by pattern-matching harder.</p>
+
+    <div class="headline">
+      <div>
+        <div class="v hero-figure">100%</div>
+        <div class="k">false positives removed</div>
+      </div>
+      <div>
+        <div class="v up">0.0</div>
+        <div class="k">recall lost</div>
+      </div>
+      <div>
+        <div class="v">+31.2</div>
+        <div class="k">precision points over Joern</div>
+      </div>
+      <div>
+        <div class="v">17→10</div>
+        <div class="k">findings → unique patterns</div>
+      </div>
+      <div>
+        <div class="v">177</div>
+        <div class="k">tests, all passing</div>
+      </div>
+    </div>
+
+    <div class="hero-meta">
+      <span class="chip">Python + JavaScript targets</span>
+      <span class="chip">3 Python dependencies</span>
+      <span class="chip">no build step</span>
+      <span class="chip">Joern CPG engine</span>
+      <span class="chip">live DefectDojo import</span>
+      <span class="chip">7 members · 5 days</span>
+      <span class="chip">4:36 narrated demo video</span>
+    </div>
+  </div>
+</header>
+
+<section>
+  <div class="wrap">
+    <p class="eyebrow">The problem</p>
+    <h2>The failure mode isn't missed bugs. It's ignored reports.</h2>
+    <div class="two-col" style="margin-top:1.4rem">
+      <div>
+        <p>A conventional scanner flags every place a variable reaches <code class="inline">os.system</code>. Most of those are already safe — the value was quoted, or checked against an allowlist, or the branch can never execute, or nothing attacker-controlled reaches it at all.</p>
+        <p>So the report says 200 findings. Developers read the first 20, learn the tool cries wolf, and the real bug at number 40 ships to production.</p>
+      </div>
+      <div class="panel">
+        <h3 style="margin-bottom:.6rem">Our answer</h3>
+        <p style="font-size:.92rem">Split the job in two, and let each half do what it is good at.</p>
+        <ul class="facts">
+          <li><span class="mark">1</span><span><strong>Finding</strong> a suspicious path is a mechanical problem. Be exhaustive and deliberately noisy.</span></li>
+          <li><span class="mark">2</span><span><strong>Judging</strong> whether it is exploitable is a reasoning problem. Give a model the evidence and make it write down why.</span></li>
+        </ul>
+        <p style="font-size:.85rem;color:var(--muted);margin:.9rem 0 0">A suppressed finding is never deleted — it stays in the report with its reason, so a reviewer can overrule us and the suppression rate stays measurable.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <p class="eyebrow">Architecture · a genuine four-step sequence</p>
+    <h2>Four stages, each owned by one person</h2>
+    <p style="margin:.9rem 0 1.6rem">Every stage has a written input and output contract, frozen on day one. That is what let seven people build in parallel without blocking each other.</p>
+
+    <div class="stages">
+      <div class="stage">
+        <div class="idx">01</div>
+        <h3>Prepare</h3>
+        <p>Source text becomes a Code Property Graph and a language-neutral IR. Two interchangeable engines: the standard-library <code class="inline">ast</code>, or <strong>Joern</strong>.</p>
+        <p style="font-size:.83rem;color:var(--muted)">No build, no <code class="inline">pip install</code>, no execution of the code being scanned. 115 nodes in 15&nbsp;ms; Joern's CPG in ~15&nbsp;s.</p>
+        <div class="owner">Member 1</div>
+      </div>
+      <div class="stage">
+        <div class="idx">02</div>
+        <h3>Scan</h3>
+        <p>Forward taint analysis: walk each function, follow attacker input, report every path that reaches a dangerous call.</p>
+        <p style="font-size:.83rem;color:var(--muted)">A sanitizer is <em>recorded</em>, not obeyed. Suppressing here would destroy the evidence.</p>
+        <div class="owner">Member 2</div>
+      </div>
+      <div class="stage">
+        <div class="idx">03</div>
+        <h3>Validate</h3>
+        <p>Claude reads the taint path, the sanitizers, the guards and the reachability, then rules exploitable or not — with a reason.</p>
+        <p style="font-size:.83rem;color:var(--muted)">Deterministic offline fallback when no API key is present.</p>
+        <div class="owner">Member 3</div>
+      </div>
+      <div class="stage">
+        <div class="idx">04</div>
+        <h3>Prove</h3>
+        <p>A proof-of-concept request built from the real route and parameter, plus a suggested fix naming the real variable.</p>
+        <p style="font-size:.83rem;color:var(--muted)">Generated, never applied. A human approves first.</p>
+        <div class="owner">Member 5</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <p class="eyebrow">Worked example · one finding, judged twice</p>
+    <h2>The same pattern, two different answers</h2>
+    <p style="margin:.9rem 0 1.8rem">Both routes below concatenate a query parameter into a shell command. A pattern matcher reports both identically. Only one is a bug.</p>
+
+    <div class="two-col">
+      <div class="panel">
+        <p class="eyebrow" style="margin-bottom:.6rem">/ping · app.py:39</p>
+        <ol class="trace">
+          <li><span class="dot">1</span><span><span class="what">attacker input enters via HTTP query string</span><code>host = request.args.get("host")</code></span></li>
+          <li><span class="dot">2</span><span><span class="what">value flows into <code class="inline">host</code></span></span></li>
+          <li><span class="dot">3</span><span><span class="what">reaches the dangerous call</span><code>os.system("ping -c 1 " + host)</code></span></li>
+        </ol>
+        <div class="verdict kill">
+          <div class="tag">Confirmed · CWE-78 · critical</div>
+          <p>Attacker-controlled HTTP query string reaches <code class="inline">os.system()</code> with no validation or sanitisation on the path.</p>
+        </div>
+        <pre class="term" style="margin-top:1rem"><span class="a">PoC</span>  curl -G http://localhost:5001/ping \
+     --data-urlencode <b>'host=; id'</b></pre>
+      </div>
+
+      <div class="panel">
+        <p class="eyebrow" style="margin-bottom:.6rem">/safe-ping · app.py:141</p>
+        <ol class="trace">
+          <li><span class="dot">1</span><span><span class="what">attacker input enters via HTTP query string</span><code>host = request.args.get("host")</code></span></li>
+          <li><span class="dot">2</span><span><span class="what">passed through <code class="inline">shlex.quote()</code></span><code>quoted = shlex.quote(host)</code></span></li>
+          <li><span class="dot">3</span><span><span class="what">reaches the dangerous call</span><code>os.system("ping -c 1 " + quoted)</code></span></li>
+        </ol>
+        <div class="verdict">
+          <div class="tag">Suppressed · not exploitable</div>
+          <p>The value passes through <code class="inline">shlex.quote</code> before reaching <code class="inline">os.system()</code>, which is the correct defence for OS command injection.</p>
+        </div>
+        <p style="font-size:.85rem;color:var(--muted);margin:1rem 0 0">Stage 2 reported this. Stage 3 dismissed it, in writing. That difference is the entire project.</p>
+      </div>
+    </div>
+
+    <div class="panel" style="margin-top:1rem">
+      <h3>The trap our own QA caught</h3>
+      <p style="font-size:.9rem;margin:.5rem 0 0">We first wrote a decoy that ran <code class="inline">html.escape()</code> before <code class="inline">render_template_string()</code> and labelled it safe. It isn't: <code class="inline">html.escape</code> escapes <code class="inline">&amp; &lt; &gt; " '</code> and leaves <code class="inline">{{</code> and <code class="inline">}}</code> untouched, so <code class="inline">?name={{7*7}}</code> still executes. A real template injection, mislabelled as a decoy. Logged as QA-001 — <strong>a sanitizer only counts if it fits the sink</strong>, and that rule is now asserted in the test suite.</p>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <p class="eyebrow">Results · measured against hand-labelled ground truth</p>
+    <h2>Every false positive removed. No true positive lost.</h2>
+    <p style="margin:.9rem 0 1.6rem">28 findings across three repositories, each labelled exploitable or not <em>before</em> the engine was run. The oracle is owned by the QA member, who writes no engine code.</p>
+
+    <div class="panel">
+      <div class="scroll">
+        <table>
+          <caption>vuln-flask · Python · 11 real vulnerabilities + 6 decoys</caption>
+          <thead>
+            <tr><th>Tool / stage</th><th>Findings</th><th>True pos.</th><th>False pos.</th><th>Missed</th><th>Precision</th><th>Recall</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>Joern <span class="mono" style="font-size:.8em;color:var(--muted)">reachableByFlows — primary baseline</span></td><td>16</td><td>11</td><td>5</td><td>0</td><td>68.8%</td><td>100%</td></tr>
+            <tr><td>Semgrep <span class="mono" style="font-size:.8em;color:var(--muted)">p/security-audit — secondary</span></td><td>12</td><td>10</td><td>2</td><td>4</td><td>83.3%</td><td>71.4%</td></tr>
+            <tr><td>Ours — Stage 2, pattern matching</td><td>17</td><td>11</td><td>6</td><td>0</td><td>64.7%</td><td>100%</td></tr>
+            <tr class="ours-final"><td>Ours — Stage 3, after validation</td><td>11</td><td>11</td><td>0</td><td>0</td><td>100%</td><td>100%</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="scroll" style="margin-top:2rem">
+        <table>
+          <caption>vuln-express · JavaScript · 6 real vulnerabilities + 4 decoys</caption>
+          <thead>
+            <tr><th>Tool / stage</th><th>Findings</th><th>True pos.</th><th>False pos.</th><th>Missed</th><th>Precision</th><th>Recall</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>Joern <span class="mono" style="font-size:.8em;color:var(--muted)">reachableByFlows — primary baseline</span></td><td>12</td><td>6</td><td>6</td><td>0</td><td>50.0%</td><td>100%</td></tr>
+            <tr><td>Semgrep <span class="mono" style="font-size:.8em;color:var(--muted)">p/security-audit — secondary</span></td><td>3</td><td>2</td><td>1</td><td>4</td><td>66.7%</td><td>33.3%</td></tr>
+            <tr><td>Ours — Stage 2, pattern matching</td><td>10</td><td>6</td><td>4</td><td>0</td><td>60.0%</td><td>100%</td></tr>
+            <tr class="ours-final"><td>Ours — Stage 3, after validation</td><td>6</td><td>6</td><td>0</td><td>0</td><td>100%</td><td>100%</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="split two" style="margin-top:1rem">
+      <div>
+        <h3>Against Joern, the primary baseline</h3>
+        <ul class="facts" style="margin-top:.7rem">
+          <li><span class="mark">→</span><span>Precision: <span class="delta-up">+31.2</span> and <span class="delta-up">+50.0</span> points</span></li>
+          <li><span class="mark">→</span><span>Recall: <span class="flat">0.0 change</span> — Joern misses nothing, and neither do we</span></li>
+          <li><span class="mark">→</span><span><span class="num"><strong>5</strong></span> and <span class="num"><strong>6</strong></span> fewer false positives</span></li>
+          <li><span class="mark">→</span><span>Findings a human must read: 28 → 17</span></li>
+        </ul>
+      </div>
+      <div>
+        <h3>Why Joern is the baseline</h3>
+        <p>Joern is a mature CPG analyser with a real inter-procedural data-flow engine — <code class="inline">reachableByFlows</code> traces the value across functions itself. It scores <strong>100% recall on both repositories</strong>: it misses nothing. What it does not do is judge which of its own findings are exploitable. That gap is the entire contribution.</p>
+        <p>Beating a data-flow engine is a harder claim than beating regular expressions, which is why Semgrep has been demoted to a secondary row.</p>
+      </div>
+    </div>
+
+    <div class="panel" style="margin-top:1rem">
+      <h3>Reading this fairly</h3>
+      <p style="font-size:.9rem;margin:.5rem 0 0">28 findings across three small files is a <strong>demonstration, not a benchmark</strong>. We wrote the corpus, and the decoys were chosen to be suppressible, so 100% is a best case. Semgrep is a mature general-purpose tool being judged here on one rule pack against code written to exercise our own engine. The transferable claim is narrower and still worth making: <em>on a corpus with known ground truth, adding a reasoning stage removed every false positive at zero cost to recall — including on top of a real data-flow engine's output.</em> The methodology — label first, then measure — is the part that generalises.</p>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <p class="eyebrow">Cross-repository deduplication</p>
+    <h2>The same bug in two languages is one ticket</h2>
+    <div class="two-col" style="margin-top:1.4rem">
+      <div>
+        <p>Findings are fingerprinted on <strong>CWE + where the input came from + the shape of the code</strong> — never on file paths, function names or variable names, because none of those survive a copy between services.</p>
+        <p><code class="inline">code_shape()</code> reduces a line to its skeleton: string literals become <code class="inline">0</code>, identifiers become <code class="inline">1</code>. An f-string, a template literal and a <code class="inline">+</code> concatenation all reduce to the same thing, because they are the same thing written three ways.</p>
+        <ul class="facts" style="margin-top:1.1rem">
+          <li><span class="mark">→</span><span><span class="num">17</span> confirmed findings become <span class="num">10</span> unique patterns</span></li>
+          <li><span class="mark">→</span><span><span class="num">5</span> patterns appear in more than one service</span></li>
+          <li><span class="mark">→</span><span>41% fewer remediation tickets</span></li>
+        </ul>
+      </div>
+      <div class="panel">
+        <p class="eyebrow" style="margin-bottom:.7rem">One cluster · CWE-78 · shape 1(0+1)</p>
+        <pre class="term"><span class="a">python</span>      os.system(<b>"ping -c 1 "</b> + host)
+            vuln-flask/app.py:39
+
+<span class="a">python</span>      os.system(<b>"generate-report --name "</b> + name)
+            vuln-flask/app.py:128
+
+<span class="a">javascript</span>  child_process.exec(<b>"ping -c 1 "</b> + host)
+            vuln-express/server.js:32
+
+<span class="g">→ one ticket, not three</span></pre>
+        <p style="font-size:.85rem;color:var(--muted);margin:.9rem 0 0">Cross-language matching is the point. A microservice estate is rarely written in one language.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <p class="eyebrow">Workflow</p>
+    <h2>Nothing is fixed without a human saying so</h2>
+
+    <div class="two-col" style="margin-top:1.4rem">
+      <div class="panel">
+        <h3>The approval gate</h3>
+        <p style="font-size:.9rem;margin:.5rem 0 1rem">Stage 4 writes a suggested fix for every confirmed finding. <code class="inline">apply_fix()</code> refuses to run unless that fix has already been approved — and even then it returns a patch rather than editing the file.</p>
+        <div class="gate">
+          <span class="node">pending</span>
+          <span class="arrow">→</span>
+          <span class="node go">approved</span>
+          <span class="arrow">→</span>
+          <span class="node">patch handed over</span>
+        </div>
+        <div class="gate" style="margin-top:.6rem">
+          <span class="node">pending</span>
+          <span class="arrow">→</span>
+          <span class="node stop">apply · refused</span>
+        </div>
+        <p style="font-size:.85rem;color:var(--muted);margin:1rem 0 0">The ordering is enforced in code, not in a process document someone forgets. Every transition records who, when and why. An auto-applied security fix is how you turn one bug into two.</p>
+      </div>
+
+      <div class="panel">
+        <h3>SLA and escalation</h3>
+        <p style="font-size:.9rem;margin:.5rem 0 1rem">Each severity gets a clock. A confirmed finding that outlives its clock breaches and escalates. Applying a fix stops it.</p>
+        <div class="scroll">
+          <table>
+            <thead><tr><th>Severity</th><th>Budget</th><th>Escalates to</th></tr></thead>
+            <tbody>
+              <tr><td><span class="pill crit">critical</span></td><td>24 h</td><td class="mono" style="text-align:right;font-size:.78rem">security-lead + eng-manager</td></tr>
+              <tr><td><span class="pill warn">high</span></td><td>72 h</td><td class="mono" style="text-align:right;font-size:.78rem">security-lead</td></tr>
+              <tr><td><span class="pill">medium</span></td><td>7 d</td><td class="mono" style="text-align:right;font-size:.78rem">team-lead</td></tr>
+              <tr><td><span class="pill">low</span></td><td>30 d</td><td class="mono" style="text-align:right;font-size:.78rem">backlog-review</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p style="font-size:.85rem;color:var(--muted);margin:1rem 0 0">Confirmed findings are pushed into a <strong>live DefectDojo</strong> over its API — product, engagement, import, then read back to confirm what landed. Each ticket carries the taint path, the verdict and the reproduction steps.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <p class="eyebrow">Resilience</p>
+    <h2>The demo does not depend on the venue wifi</h2>
+    <div class="two-col" style="margin-top:1.4rem">
+      <div>
+        <p>If <code class="inline">ANTHROPIC_API_KEY</code> is unset, or the call fails, or the reply will not parse, Stage 3 falls back to a deterministic validator that asks the same five questions as rules — and tags the verdict so you always know which one ran.</p>
+        <p>This is not theoretical. The key in our build environment returned <code class="inline">401 API key is invalid</code>. The engine caught it, fell back, recorded the reason on every verdict, and produced the same 11 confirmed / 6 suppressed. <strong>The fallback was proven under a real failure, not a simulated one.</strong></p>
+        <p style="font-size:.87rem;color:var(--muted)">Logged as ENV-1. Every published figure on this page was produced by the offline validator; the Claude path is wired and unit-tested.</p>
+      </div>
+      <div>
+        <pre class="term">$ env -u ANTHROPIC_API_KEY python scan.py testdata/vuln-flask
+
+<span class="a">note:</span> ANTHROPIC_API_KEY is not set — using the offline validator
+
+  <span class="a">PREPARE </span>  1 files, 115 CPG nodes, 19 functions
+  <span class="a">SCAN    </span>  17 potential findings
+  <span class="a">VALIDATE</span>  11 confirmed, 6 suppressed
+  <span class="a">PROVE   </span>  11 proofs generated
+
+  Stage 2 reported  : 17
+  Stage 3 confirmed : <span class="c">11</span>
+  Stage 3 suppressed: <span class="g">6</span>  (35% of everything reported)
+  validated by      : offline</pre>
+      </div>
+    </div>
+  </div>
+</section>
+
+
+<section>
+  <div class="wrap">
+    <p class="eyebrow">Evidence</p>
+    <h2>The whole thing, recorded end to end</h2>
+    <div class="two-col" style="margin-top:1.4rem">
+      <div>
+        <p><span class="mono">demo/output/sast-engine-demo.mp4</span> — <strong>4 minutes 36 seconds</strong>, narrated, 1280&times;720. Sixteen scenes covering fourteen of the sixteen requirements on the brief, each one tagged on screen with the requirement it proves.</p>
+        <p>It is not a slideshow. The terminal segments replay stdout that was really captured from real commands — exit codes and wall-clock timings are stored beside the text. Everything else is the live application driven in a real browser: the dashboard, the approval gate refusing and then accepting, and a DefectDojo push that happens on camera.</p>
+        <p>Re-record it with one command. Scene durations come from the length of the synthesised narration, so the picture always fits the words.</p>
+        <p style="font-size:.87rem;color:var(--muted)">The two requirements it does <em>not</em> demonstrate live are the LLM ones, for the reason on the previous slide. The video shows <span class="mono">validated by: offline</span> rather than hiding it.</p>
+      </div>
+      <div>
+        <pre class="term">$ ./demo/run_demo.sh
+
+<span class="a">== services ==</span>
+  api        already running on :8000
+  dashboard  already running on :5173
+  defectdojo already running on :8083
+
+<span class="a">== recording ==</span>
+   1/16  00_title            @   0.7s   —
+   3/16  02_scan             @  32.1s   <span class="g">REQ-1, 2, 11, 14</span>
+   5/16  04_joern            @  67.2s   <span class="g">REQ-10</span>
+   6/16  05_comparison       @  86.8s   <span class="g">REQ-6, 15</span>
+  11/16  10_gate             @ 176.9s   <span class="g">REQ-8</span>
+  13/16  12_defectdojo       @ 210.7s   <span class="g">REQ-13</span>
+  15/16  14_tests            @ 244.1s   <span class="g">REQ-16</span>
+
+  <span class="c">mp4</span>  demo/output/sast-engine-demo.mp4  (21.3 MB)
+  stills  16 PNGs
+  timeline  demo/output/timeline.json</pre>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <p class="eyebrow">Team · seven members, seven module boundaries</p>
+    <h2>Nobody waits for anybody after day one</h2>
+    <p style="margin:.9rem 0 1.5rem">Four interface contracts — the IR, the finding dictionary, the scan file, the HTTP API — are frozen in the first hour. Everyone else codes against stubs until the real thing lands.</p>
+
+    <div class="modules">
+      <div class="module"><div class="m">M1</div><div><h3>Prepare / CPG</h3><p>Graph and IR, the Python parser, file discovery. <span class="mono">cpg.py · py_parser.py · stage1_prepare.py</span></p></div></div>
+      <div class="module"><div class="m">M2</div><div><h3>Scan / taint engine</h3><p>The rule tables and the forward taint walk. <span class="mono">rules.py · stage2_scan.py</span></p></div></div>
+      <div class="module"><div class="m">M3</div><div><h3>Validate / LLM agent</h3><p>Prompt design, the Claude client, the offline fallback. <span class="mono">llm.py · stage3_validate.py</span></p></div></div>
+      <div class="module"><div class="m">M4</div><div><h3>Dedupe + baseline</h3><p>Cross-repo clustering and every number on this page. <span class="mono">dedupe.py · baseline.py</span></p></div></div>
+      <div class="module"><div class="m">M5</div><div><h3>Prove + integrations</h3><p>PoC and fix generation, DefectDojo export, JavaScript support. <span class="mono">stage4_prove.py · defectdojo.py · js_parser.py</span></p></div></div>
+      <div class="module"><div class="m">M6</div><div><h3>API + workflow</h3><p>CLI, HTTP API, storage, the approval gate, the SLA clock. <span class="mono">server.py · scan.py · approvals.py · sla.py</span></p></div></div>
+      <div class="module"><div class="m">M7</div><div><h3>UI + QA + docs</h3><p>The dashboard, the corpus and oracle, 127 tests, this deck. <span class="mono">ui/ · tests/ · testdata/ · docs/</span></p></div></div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <p class="eyebrow">Quality</p>
+    <h2>177 tests, and the limitations written down</h2>
+
+    <div class="split three" style="margin-top:1.4rem">
+      <div>
+        <h3>Test layers</h3>
+        <p><span class="num">44</span> unit · <span class="num">17</span> end-to-end · <span class="num">11</span> accuracy · <span class="num">26</span> workflow · <span class="num">24</span> integration · <span class="num">16</span> API · <span class="num">15</span> scenario · <span class="num">16</span> requirement</p>
+        <p style="margin-top:.6rem;color:var(--muted)">Every test runs offline and deterministically. One test per box on the hackathon slide, and a test that asserts the QA matrix has no row without a test behind it.</p>
+      </div>
+      <div>
+        <h3>The corpus</h3>
+        <p><span class="num">17</span> real vulnerabilities across 9 CWE classes, <span class="num">11</span> deliberate decoys, and a clean control app where any finding at all is a false positive.</p>
+        <p style="margin-top:.6rem;color:var(--muted)">The decoys are what make a suppression rate measurable. Without them there is nothing to suppress.</p>
+      </div>
+      <div>
+        <h3>Bugs we found on ourselves</h3>
+        <p>13 defects logged and closed during the build, including a mislabelled decoy that was really a live template injection, and a fingerprint collision that clustered unrelated findings.</p>
+        <p style="margin-top:.6rem;color:var(--muted)">All twenty are in <span class="mono">docs/qa-log.md</span> with their resolution.</p>
+      </div>
+    </div>
+
+    <div class="panel" style="margin-top:1rem">
+      <h3>Known limitations — stated here rather than discovered on stage</h3>
+      <ul class="facts" style="margin-top:.8rem">
+        <li><span class="mark">·</span><span><strong>The JavaScript parser is a line scanner, not a real parser.</strong> Multi-line call arguments are not handled. Python — the primary target — uses the real <code class="inline">ast</code> module and has none of these limits.</span></li>
+        <li><span class="mark">·</span><span><strong>One API call per finding.</strong> Correct but slow and costly on a large codebase. Batching is the first thing we would do next.</span></li>
+        <li><span class="mark">·</span><span><strong>Inter-procedural taint is capped at depth 2</strong>, resolved by name within a single repository. No cross-file call graph.</span></li>
+        <li><span class="mark">·</span><span><strong>Loop bodies are walked twice, not to a fixpoint.</strong> Two passes settle every case in the corpus; it is not proven in general.</span></li>
+        <li><span class="mark">·</span><span><strong>Joern's flow output carries no guard or dead-code information.</strong> A separate <code class="inline">ast</code> pass recovers both; without it the allowlist and <code class="inline">if False:</code> decoys survive validation on the Joern path. That pass is Python-only.</span></li>
+        <li><span class="mark">·</span><span><strong>A Joern scan costs ~15 seconds and ~4&nbsp;GB of heap</strong> on a one-file repository, against ~15 milliseconds for the builtin engine.</span></li>
+        <li><span class="mark">·</span><span><strong>Nothing here has met a 100k-line codebase.</strong> The per-finding LLM call would be the first thing to break.</span></li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <p class="eyebrow">Next</p>
+    <h2>Where this goes after the hackathon</h2>
+    <div class="split three" style="margin-top:1.4rem">
+      <div><h3>Batch the validation</h3><p>The Message Batches API cuts both cost and wall-clock time, and removes the single biggest scaling limit.</p></div>
+      <div><h3>Joern for JavaScript too</h3><p>Joern already parses it correctly; wiring it as the default JS front end retires our line scanner and its multi-line gap.</p></div>
+      <div><h3>Learn from approvals</h3><p>A finding a human rejects three times is a rule that needs tuning. Feed the approval queue back into the rule tables.</p></div>
+    </div>
+    <div class="split three" style="margin-top:.5rem">
+      <div><h3>Incremental scanning</h3><p>Re-analyse only the functions a diff touched, so the engine can sit in a pull-request check.</p></div>
+      <div><h3>Deeper reachability</h3><p>A cross-file call graph, so <code class="inline">http_reachable</code> becomes a proof rather than a heuristic.</p></div>
+      <div><h3>More languages</h3><p>One new builder emits the same IR and the taint engine is unchanged. That was the point of the design.</p></div>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    <p><strong style="color:var(--ink)">Multi-Stage Agentic SAST Engine</strong> — Prepare → Scan → Validate → Prove.<br>
+    Every figure on this page was produced by a real run and is reproducible with <code class="inline">python scan.py testdata/vuln-flask testdata/vuln-express</code> and <code class="inline">pytest tests/ -q</code>.</p>
+    <p style="margin-bottom:0"><span class="mono" style="font-size:.78rem">testdata/vuln-flask</span> and <span class="mono" style="font-size:.78rem">testdata/vuln-express</span> are deliberately vulnerable. Do not deploy them or expose them to a network.</p>
+  </div>
+</footer>

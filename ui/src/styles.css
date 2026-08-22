@@ -1,0 +1,171 @@
+/* Hand-written CSS. No Tailwind, no component library -- every rule here is
+   one a fresher can read and change. Owner: Member 7. */
+
+:root {
+  --bg: #0f1420;
+  --panel: #171e2e;
+  --panel-2: #1e2637;
+  --border: #2a3448;
+  --text: #e6ebf5;
+  --muted: #8b98b0;
+  --accent: #4f8ef7;
+  --critical: #ff5c6c;
+  --high: #ff9f43;
+  --medium: #f3d34a;
+  --medium-c: #f3d34a;
+  --low: #4fc3f7;
+  --ok: #46d39a;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  font-size: 14px;
+  line-height: 1.55;
+}
+
+code, pre, .mono {
+  font-family: "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
+  font-size: 12.5px;
+}
+
+/* ---------------------------------------------------------------- layout */
+
+header {
+  background: var(--panel);
+  border-bottom: 1px solid var(--border);
+  padding: 14px 24px;
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  flex-wrap: wrap;
+}
+
+header h1 { font-size: 17px; margin: 0; letter-spacing: 0.2px; }
+header .stages { color: var(--muted); font-size: 12px; }
+
+nav { display: flex; gap: 4px; padding: 0 24px; background: var(--panel);
+      border-bottom: 1px solid var(--border); overflow-x: auto; }
+
+nav button {
+  background: none; border: none; color: var(--muted);
+  padding: 11px 16px; cursor: pointer; font-size: 13px;
+  border-bottom: 2px solid transparent; white-space: nowrap;
+}
+nav button:hover { color: var(--text); }
+nav button.active { color: var(--accent); border-bottom-color: var(--accent); }
+
+main { padding: 22px 24px 60px; max-width: 1400px; }
+
+/* ---------------------------------------------------------------- panels */
+
+.panel {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 16px 18px;
+  margin-bottom: 16px;
+}
+
+.panel h2 { margin: 0 0 12px; font-size: 14px; font-weight: 600; }
+.panel h3 { margin: 16px 0 8px; font-size: 13px; color: var(--muted); font-weight: 600;
+            text-transform: uppercase; letter-spacing: 0.6px; }
+
+.row { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; }
+.grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; }
+
+/* ------------------------------------------------------------------ tiles */
+
+.tile {
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 14px 16px;
+}
+.tile .value { font-size: 26px; font-weight: 600; line-height: 1.2; }
+.tile .label { color: var(--muted); font-size: 11.5px; text-transform: uppercase;
+               letter-spacing: 0.7px; margin-top: 4px; }
+.tile .hint { color: var(--muted); font-size: 11.5px; margin-top: 6px; }
+
+/* ---------------------------------------------------------------- inputs */
+
+input[type="text"], select {
+  background: var(--panel-2); color: var(--text);
+  border: 1px solid var(--border); border-radius: 6px;
+  padding: 8px 11px; font-size: 13px; min-width: 200px;
+}
+
+button.action {
+  background: var(--accent); color: #fff; border: none;
+  border-radius: 6px; padding: 8px 15px; cursor: pointer; font-size: 13px;
+}
+button.action:hover { filter: brightness(1.1); }
+button.action:disabled { opacity: 0.45; cursor: not-allowed; }
+button.ghost { background: transparent; border: 1px solid var(--border); color: var(--text); }
+button.danger { background: var(--critical); }
+button.good { background: var(--ok); color: #06251a; }
+
+label.check { display: flex; align-items: center; gap: 6px; color: var(--muted); font-size: 13px; }
+
+/* ---------------------------------------------------------------- tables */
+
+table { width: 100%; border-collapse: collapse; }
+th {
+  text-align: left; color: var(--muted); font-size: 11px; font-weight: 600;
+  text-transform: uppercase; letter-spacing: 0.6px;
+  padding: 8px 10px; border-bottom: 1px solid var(--border);
+}
+td { padding: 9px 10px; border-bottom: 1px solid var(--border); vertical-align: top; }
+tr.clickable:hover { background: var(--panel-2); cursor: pointer; }
+.scroll-x { overflow-x: auto; }
+
+/* ---------------------------------------------------------------- badges */
+
+.badge {
+  display: inline-block; padding: 2px 8px; border-radius: 20px;
+  font-size: 11px; font-weight: 600; letter-spacing: 0.3px;
+}
+.sev-critical { background: rgba(255, 92, 108, 0.18); color: var(--critical); }
+.sev-high     { background: rgba(255, 159, 67, 0.18); color: var(--high); }
+.sev-medium   { background: rgba(243, 211, 74, 0.18); color: var(--medium-c); }
+.sev-low      { background: rgba(79, 195, 247, 0.18); color: var(--low); }
+.sev-info     { background: rgba(139, 152, 176, 0.18); color: var(--muted); }
+
+.status-confirmed  { background: rgba(255, 92, 108, 0.18); color: var(--critical); }
+.status-suppressed { background: rgba(70, 211, 154, 0.18); color: var(--ok); }
+
+.pill { color: var(--muted); font-size: 11.5px; border: 1px solid var(--border);
+        border-radius: 20px; padding: 2px 9px; }
+
+/* ------------------------------------------------------------ taint path */
+
+.taint-step {
+  display: flex; gap: 12px; padding: 9px 0;
+  border-left: 2px solid var(--border); padding-left: 14px; margin-left: 7px;
+}
+.taint-step .num {
+  background: var(--accent); color: #fff; border-radius: 50%;
+  width: 20px; height: 20px; min-width: 20px; display: flex;
+  align-items: center; justify-content: center; font-size: 11px;
+  margin-left: -25px;
+}
+.taint-step .desc { color: var(--muted); font-size: 12.5px; }
+.taint-step pre { margin: 4px 0 0; white-space: pre-wrap; word-break: break-word; }
+
+pre.block {
+  background: #0b101a; border: 1px solid var(--border); border-radius: 6px;
+  padding: 11px 13px; overflow-x: auto; margin: 6px 0 0;
+  white-space: pre-wrap; word-break: break-word;
+}
+
+.muted { color: var(--muted); }
+.small { font-size: 12px; }
+.center { text-align: center; }
+.gain { color: var(--ok); font-weight: 600; }
+.loss { color: var(--critical); font-weight: 600; }
+.error { color: var(--critical); }
+.empty { color: var(--muted); padding: 26px; text-align: center; }
